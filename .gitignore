@@ -1,0 +1,30 @@
+# Python/runtime artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.venv/
+venv/
+
+# macOS/editor noise
+.DS_Store
+*.swp
+*.swo
+
+# Generated logs, reports, image crops, and simulator output
+logs/
+*.ulg
+dataman
+
+# Large/local simulator and build outputs
+build/
+install/
+log/
+
+# Local secrets
+.env
+*.pem
+*.key
+

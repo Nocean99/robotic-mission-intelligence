@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sdf version="1.9">
+  <world name="red_block_search">
+    <physics type="ode">
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>250</real_time_update_rate>
+    </physics>
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
+    <atmosphere type="adiabatic"/>
+    <scene>
+      <grid>true</grid>
+      <ambient>0.45 0.45 0.45 1</ambient>
+      <background>0.72 0.74 0.76 1</background>
+      <shadows>true</shadows>
+    </scene>
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>1 1</size>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>80 80</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.8 0.8 0.8 1</ambient>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+            <specular>0.5 0.5 0.5 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <include>
+      <uri>model://red_block</uri>
+      <pose>6 4 0.5 0 0 0</pose>
+    </include>
+    <light name="sun" type="directional">
+      <pose>0 0 30 0 0 0</pose>
+      <cast_shadows>true</cast_shadows>
+      <intensity>1.4</intensity>
+      <direction>-0.3 0.4 -0.85</direction>
+      <diffuse>0.95 0.95 0.9 1</diffuse>
+      <specular>0.3 0.3 0.3 1</specular>
+    </light>
+  </world>
+</sdf>

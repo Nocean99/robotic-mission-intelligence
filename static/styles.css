@@ -1,0 +1,310 @@
+:root {
+  color-scheme: dark;
+  --bg: #101417;
+  --panel: #182024;
+  --panel-2: #202a2f;
+  --line: #324147;
+  --text: #eef5f2;
+  --muted: #a9bbb4;
+  --good: #51d88a;
+  --warn: #f6c85f;
+  --bad: #ff6b64;
+  --accent: #63cdda;
+  --track: #27343a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.shell {
+  width: min(1440px, calc(100% - 28px));
+  margin: 0 auto;
+  padding: 18px 0 28px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0 16px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: var(--accent);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(1.8rem, 4vw, 3.8rem);
+  line-height: 1;
+}
+
+h2 {
+  font-size: 1rem;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+button,
+.toggle {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 0 14px;
+  cursor: pointer;
+}
+
+button:hover,
+.toggle:hover {
+  border-color: var(--accent);
+}
+
+button.primary {
+  background: #1d5f55;
+  border-color: #2d907f;
+}
+
+button.danger {
+  background: #642823;
+  border-color: #a6433a;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toggle input {
+  accent-color: var(--accent);
+}
+
+.status-strip {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.status-strip div,
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.status-strip div {
+  padding: 12px;
+}
+
+.status-strip span,
+.panel-head p,
+.meters label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.status-strip strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 1.15rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(330px, 0.8fr);
+  grid-template-areas:
+    "map video"
+    "map health"
+    "map tests"
+    "map alerts";
+  gap: 12px;
+}
+
+.panel {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  min-height: 46px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.map-panel {
+  grid-area: map;
+}
+
+.video-panel {
+  grid-area: video;
+}
+
+.health-panel {
+  grid-area: health;
+}
+
+.alerts-panel {
+  grid-area: alerts;
+}
+
+.tests-panel {
+  grid-area: tests;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  background: #0d1113;
+}
+
+#map {
+  aspect-ratio: 900 / 640;
+}
+
+#video {
+  aspect-ratio: 700 / 420;
+}
+
+.meters {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+
+.test-controls {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+
+.test-controls label {
+  display: grid;
+  grid-template-columns: 92px 1fr 72px;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.test-controls input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.camera-tests {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+meter {
+  display: block;
+  width: 100%;
+  height: 16px;
+  margin-top: 6px;
+}
+
+.alerts {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  margin: 0;
+  padding: 12px 14px 14px;
+  overflow: auto;
+  list-style: none;
+}
+
+.alerts li {
+  border-left: 4px solid var(--accent);
+  background: var(--track);
+  border-radius: 4px;
+  padding: 10px 10px 10px 12px;
+}
+
+.alerts li.warning {
+  border-color: var(--warn);
+}
+
+.alerts li.critical {
+  border-color: var(--bad);
+}
+
+.alerts strong {
+  display: block;
+  font-size: 0.92rem;
+}
+
+.alerts span {
+  display: block;
+  color: var(--muted);
+  margin-top: 2px;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 980px) {
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .actions {
+    justify-content: flex-start;
+  }
+
+  .status-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "map"
+      "video"
+      "health"
+      "tests"
+      "alerts";
+  }
+
+  .test-controls label,
+  .camera-tests {
+    grid-template-columns: 1fr;
+  }
+}

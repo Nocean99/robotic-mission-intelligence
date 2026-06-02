@@ -1,0 +1,3 @@
+image_path,expected_match,label,notes
+example_positive.jpg,true,target_object,Replace with an image that should match the mission request
+example_negative.jpg,false,not_target,Replace with an image that should not match the mission request

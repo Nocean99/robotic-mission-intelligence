@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Drone Control Center</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">Autonomous site-monitoring drone</p>
+          <h1>Control Center</h1>
+        </div>
+        <div class="actions" aria-label="Mission controls">
+          <button data-command="start" class="primary">Start</button>
+          <button data-command="pause">Hold</button>
+          <button data-command="rth">RTH</button>
+          <button data-command="abort" class="danger">Abort</button>
+          <label class="toggle">
+            <input id="manualToggle" type="checkbox" />
+            <span>Manual</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="status-strip" aria-label="Drone status">
+        <div>
+          <span>Phase</span>
+          <strong id="phase">IDLE</strong>
+        </div>
+        <div>
+          <span>Battery</span>
+          <strong id="battery">100%</strong>
+        </div>
+        <div>
+          <span>Altitude</span>
+          <strong id="altitude">0 m</strong>
+        </div>
+        <div>
+          <span>Link</span>
+          <strong id="link">98%</strong>
+        </div>
+        <div>
+          <span>GPS</span>
+          <strong id="gps">97%</strong>
+        </div>
+        <div>
+          <span>Wind</span>
+          <strong id="wind">0 m/s</strong>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="panel map-panel">
+          <div class="panel-head">
+            <h2>Map</h2>
+            <p id="reason">Ready</p>
+          </div>
+          <canvas id="map" width="900" height="640" aria-label="Mission map"></canvas>
+        </article>
+
+        <article class="panel video-panel">
+          <div class="panel-head">
+            <h2>Live Video</h2>
+            <p id="cameraMode">Simulated RGB feed</p>
+          </div>
+          <canvas id="video" width="700" height="420" aria-label="Simulated camera feed"></canvas>
+        </article>
+
+        <article class="panel health-panel">
+          <div class="panel-head">
+            <h2>Health</h2>
+            <p id="updated">Waiting for telemetry</p>
+          </div>
+          <div class="meters">
+            <label>Obstacle <meter id="obstacle" min="0" max="100" value="80"></meter></label>
+            <label>Vibration <meter id="vibration" min="0" max="1" value="0.08"></meter></label>
+            <label>Temp <meter id="temperature" min="0" max="90" value="34"></meter></label>
+            <label>Stabilization <meter id="stabilization" min="0" max="100" value="0"></meter></label>
+          </div>
+        </article>
+
+        <article class="panel tests-panel">
+          <div class="panel-head">
+            <h2>Simulation Tests</h2>
+            <p>Wind and camera input</p>
+          </div>
+          <div class="test-controls">
+            <label>
+              Wind speed
+              <input id="windSpeed" type="range" min="0" max="24" step="0.5" value="2.5" />
+              <span id="windSpeedLabel">2.5 m/s</span>
+            </label>
+            <label>
+              Gust
+              <input id="windGust" type="range" min="0" max="10" step="0.5" value="1.2" />
+              <span id="windGustLabel">1.2 m/s</span>
+            </label>
+            <div class="camera-tests">
+              <button data-detection="person">Person</button>
+              <button data-detection="vehicle">Vehicle</button>
+              <button data-detection="drone-like object">Drone</button>
+              <button data-detection="unknown">Unknown</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel alerts-panel">
+          <div class="panel-head">
+            <h2>Alerts</h2>
+            <p id="eventCount">0 events</p>
+          </div>
+          <ol id="alerts" class="alerts"></ol>
+        </article>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

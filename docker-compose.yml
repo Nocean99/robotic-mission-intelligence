@@ -1,0 +1,16 @@
+services:
+  ros2:
+    build:
+      context: .
+      dockerfile: docker/ros2.Dockerfile
+    image: autonomous-drone-ros2:jazzy
+    container_name: autonomous-drone-ros2
+    working_dir: /workspace/autonomous-drone
+    volumes:
+      - .:/workspace/autonomous-drone
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - ROS_LOCALHOST_ONLY=${ROS_LOCALHOST_ONLY:-0}
+    stdin_open: true
+    tty: true
+    command: /bin/bash

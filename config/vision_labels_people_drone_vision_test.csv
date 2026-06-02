@@ -1,0 +1,44 @@
+image_path,expected_match,label,notes
+black and silver car and person.jpg,true,person,filename says person
+just grass 2.jpg,false,no_person,filename says grass only
+just grass 3.jpg,false,no_person,filename says grass only
+just grass 4.jpg,false,no_person,filename says grass only
+just grass 5.jpg,false,no_person,filename says grass only
+just grass.jpg,false,no_person,filename says grass only
+justt grass 6.jpg,false,no_person,filename says grass only
+multiple people 2.jpg,true,people,filename says multiple people
+multiple people 3.jpg,true,people,filename says multiple people
+multiple people.jpg,true,people,filename says multiple people
+multiple poeple .jpg,true,people,filename says multiple people
+multiple poeple 2.jpg,true,people,filename says multiple people
+oeople around campfire.jpg,true,people,filename says people around campfire
+perosn in green 2.jpg,true,person,filename says person in green
+perosn in green.jpg,true,person,filename says person in green
+person hidden in grass 3.jpg,true,person,filename says hidden person
+person hidden in grass.jpg,true,person,filename says hidden person
+person hiding in grass 3.jpg,true,person,filename says hidden person
+person in green hidden in grass 2.jpg,true,person,filename says hidden person
+person in green hidden in grass.jpg,true,person,filename says hidden person
+person in green hidden in tall grass.jpg,true,person,filename says hidden person
+person in green shirt.jpg,true,person,filename says person
+person in green tshirt.jpg,true,person,filename says person
+person in grey hoodie 2.jpg,true,person,filename says person
+person in grey hoodie 3.jpg,true,person,filename says person
+person in grey hoodie and person in green tshirt.jpg,true,people,filename says two people
+person in grey hoodie.jpg,true,person,filename says person
+person in grey in grass.jpg,true,person,filename says person
+person in grey jacket.jpg,true,person,filename says person
+person in grey shirt .jpg,true,person,filename says person
+person lauying on ground .jpg,true,person,filename says person lying on ground
+red white and grey car .jpg,false,no_person,vehicle only by filename
+red white and grey car 2.jpg,false,no_person,vehicle only by filename
+red white and grey car.jpg,false,no_person,vehicle only by filename
+something grey in grass .jpg,false,ambiguous_object,filename does not identify person
+something grey in grass 2.jpg,false,ambiguous_object,filename does not identify person
+white jeep and familly.jpg,true,people,filename says family
+white jeep.jpg,false,no_person,vehicle only by filename
+white truck 2.jpg,false,no_person,vehicle only by filename
+white truck 3.jpg,false,no_person,vehicle only by filename
+white truck with familly 2.jpg,true,people,filename says family
+white truck with familly.jpg,true,people,filename says family
+white truck.jpg,false,no_person,vehicle only by filename

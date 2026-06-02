@@ -1,0 +1,39 @@
+takeoff_altitude_m: 5.0
+hover_time_s: 3.0
+control_rate_hz: 20
+waypoint_tolerance_m: 0.5
+yaw_tolerance_rad: 0.2
+max_altitude_m: 20.0
+max_distance_from_home_m: 50.0
+waypoint_timeout_s: 30.0
+return_home_altitude_m: 5.0
+cruise_speed_mps: 2.0
+
+waypoints:
+  - {x: 5.0, y: 0.0, z: -5.0, yaw: 0.0, hold_time_s: 2.0}
+  - {x: 5.0, y: 5.0, z: -5.0, yaw: 1.57, hold_time_s: 2.0}
+  - {x: 0.0, y: 5.0, z: -5.0, yaw: 3.14, hold_time_s: 2.0}
+
+target:
+  type: red_block
+  hsv_lower_1: [0, 100, 100]
+  hsv_upper_1: [10, 255, 255]
+  hsv_lower_2: [170, 100, 100]
+  hsv_upper_2: [180, 255, 255]
+  min_area_px: 500
+  required_confirm_frames: 5
+
+search:
+  pattern: lawnmower
+  area_width_m: 20
+  area_height_m: 20
+  lane_spacing_m: 3
+  altitude_m: 5
+  search_speed_mps: 1.5
+  timeout_s: 300
+
+approach:
+  enabled: true
+  max_speed_mps: 0.75
+  stop_area_ratio: 0.15
+  center_tolerance_px: 40
