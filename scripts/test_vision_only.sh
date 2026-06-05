@@ -2,4 +2,5 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+source scripts/load_project_env.sh
 python3 -m autonomy.vision_lab "$@"

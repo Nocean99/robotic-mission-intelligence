@@ -1,0 +1,23 @@
+flowchart TD
+    A[Mission Request] --> B[Mission Planning]
+    B --> C[Contextual Search Priorities]
+    C --> D[Sensor Collection]
+    D --> E[Proposal Detection]
+    E --> F[Semantic Scoring]
+    F --> G[Candidate Ranking]
+    G --> H[Analyst Review]
+    H --> I[Mission Memory]
+    I --> J[Mission Report]
+
+    D -.-> D1[Image Folder]
+    D -.-> D2[Video]
+    D -.-> D3[Drone Camera]
+    D -.-> D4[Future Sensor Sources]
+
+    F -.-> F1[Local Semantic Scorer]
+    F -.-> F2[Optional Vision-Language Scorer]
+
+    G -.-> G1[Proposal Score]
+    G -.-> G2[Semantic Score]
+    G -.-> G3[Uncertainty Score]
+    G -.-> G4[Mission Relevance Score]

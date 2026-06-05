@@ -187,6 +187,23 @@ class MissionVisionPlan:
     notes: list[str] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class SearchPriority:
+    name: str
+    priority: int
+    rationale: str
+    cues: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ContextualSearchPlan:
+    likely_locations: list[SearchPriority] = field(default_factory=list)
+    deprioritized_locations: list[SearchPriority] = field(default_factory=list)
+    routing_guidance: list[str] = field(default_factory=list)
+    required_context_sources: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+
+
 @dataclass
 class CandidateTarget:
     id: str

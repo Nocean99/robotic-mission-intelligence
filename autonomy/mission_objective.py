@@ -27,7 +27,7 @@ COLORS = {
 CATEGORY_HINTS = {
     "person": {"person", "people", "hiker", "child", "adult", "victim", "survivor"},
     "vehicle": {"vehicle", "car", "truck", "pickup", "suv", "van", "atv", "snowmobile"},
-    "boat": {"boat", "vessel", "canoe", "kayak", "raft", "t-top", "ttop", "center console"},
+    "boat": {"boat", "ship", "vessel", "canoe", "kayak", "raft", "sailboat", "skiff", "t-top", "ttop", "center console"},
     "aircraft": {"aircraft", "plane", "helicopter", "drone"},
     "debris": {"debris", "wreckage", "crash", "crashed", "overturned"},
     "signal": {"flare", "smoke", "fire", "signal", "marker"},

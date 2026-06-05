@@ -11,12 +11,14 @@ import cv2
 import numpy as np
 
 from autonomy.config_loader import load_search_mission_config
+from autonomy.candidate_ranking import rank_candidate
 from autonomy.color_proposal_detector import MissionColorProposalDetector
 from autonomy.mission_objective import parse_mission_request
 from autonomy.mission_vision_plan import create_mission_vision_plan
 from autonomy.objectness_proposal_detector import ObjectnessProposalDetector
 from autonomy.red_block_detector import RedBlockDetector
 from autonomy.semantic_vision import LocalSemanticVisionScorer, OpenAIVisionLanguageScorer, crop_detection, save_candidate_crop
+from autonomy.types import SemanticDecision, SemanticVisionResult, TargetDetection
 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
@@ -198,21 +200,41 @@ def _run_vision_lab_on_frames(
         audit_mask = audit_mask_for_mode(detector, color_detector, objectness_detector, vision_plan, frame, proposal_mode)
         audit = red_region_audit(audit_mask)
         crop = crop_detection(frame, detection)
-        semantic = scorer.score(
-            objective=objective,
-            frame_bgr=frame,
-            crop_bgr=crop,
-            detection=detection,
-        )
+        semantic_error = None
+        semantic = None
+        try:
+            semantic = scorer.score(
+                objective=objective,
+                frame_bgr=frame,
+                crop_bgr=crop,
+                detection=detection,
+            )
+        except Exception as exc:
+            semantic_error = f"{type(exc).__name__}: {exc}"
+            semantic = semantic_failure_result(scorer.model_name, semantic_error)
         full_frame_result = None
-        if should_run_full_frame_semantic(full_frame_semantic, detected=detection.detected):
-            full_frame_result = scorer.score_full_frame(objective=objective, frame_bgr=frame)
+        if should_run_full_frame_semantic(full_frame_semantic, detected=detection.detected, crop_decision=semantic.decision):
+            try:
+                full_frame_result = scorer.score_full_frame(objective=objective, frame_bgr=frame)
+            except Exception as exc:
+                error = f"{type(exc).__name__}: {exc}"
+                semantic_error = error if semantic_error is None else f"{semantic_error}; full_frame: {error}"
+                full_frame_result = semantic_failure_result(scorer.model_name, error, full_frame=True)
         final_score = max(
             semantic.score,
             0.0 if full_frame_result is None else full_frame_result.score,
         )
         final_decision = semantic.decision if full_frame_result is None or semantic.score >= full_frame_result.score else full_frame_result.decision
+        ranking = rank_candidate(
+            detection=detection,
+            semantic=semantic,
+            full_frame_result=full_frame_result,
+            final_score=final_score,
+            final_decision=final_decision,
+            semantic_error=semantic_error,
+        )
         stem = _frame_stem(source_path, item.get("frame_index"))
+        candidate_id = f"{index:04d}_{stem}"
         debug_path: Path | None = run_dir / f"{index:04d}_{stem}_debug.png"
         crop_path: Path | None = run_dir / f"{index:04d}_{stem}_crop.png"
         should_save_all = not save_only_detections
@@ -230,17 +252,25 @@ def _run_vision_lab_on_frames(
         results.append(
             {
                 "image_path": str(source_path),
+                "candidate_id": candidate_id,
                 "frame_index": item.get("frame_index"),
                 "timestamp_s": item.get("timestamp_s"),
                 "detected": detection.detected,
                 "detector_confidence": detection.confidence,
+                "proposal_score": ranking.proposal_score,
+                "semantic_score": ranking.semantic_score,
+                "uncertainty_score": ranking.uncertainty_score,
+                "mission_relevance_score": ranking.mission_relevance_score,
                 "bbox": detection.bbox,
                 "red_audit": audit,
-                "review_priority": detection.confidence,
+                "review_priority": ranking.review_priority,
+                "review_reasons": ranking.reasons,
+                "candidate_rank": ranking.as_dict(),
                 "crop_path": saved_crop,
                 "debug_path": None if debug_path is None else str(debug_path),
                 "semantic": asdict(semantic),
                 "full_frame_semantic": None if full_frame_result is None else asdict(full_frame_result),
+                "semantic_error": semantic_error,
                 "final_score": final_score,
                 "final_decision": final_decision.value,
             }
@@ -296,6 +326,7 @@ def _run_vision_lab_on_frames(
             "processed": len(results),
             "detections": detected_count,
             "errors": sum(1 for result in results if "error" in result),
+            "semantic_errors": sum(1 for result in results if result.get("semantic_error")),
             "detection_rate": 0.0 if not results else round(detected_count / len(results), 4),
             "save_only_detections": save_only_detections,
             "max_saved_candidates": max_saved_candidates,
@@ -454,7 +485,9 @@ def detect_with_mode(
     if proposal_mode == "mission-color":
         if not vision_plan.important_colors and vision_plan.possible_categories:
             return objectness_detector.detect(frame)
-        return color_detector.detect(frame)
+        color_detection = color_detector.detect(frame)
+        objectness_detection = objectness_detector.detect(frame) if vision_plan.possible_categories else TargetDetection(False)
+        return best_detection(color_detection, objectness_detection)
     return detector.detect_high_recall(frame)
 
 
@@ -469,8 +502,18 @@ def audit_mask_for_mode(
     if proposal_mode == "mission-color":
         if not vision_plan.important_colors and vision_plan.possible_categories:
             return objectness_detector.mask(frame)
-        return color_detector.mask(frame)
+        color_mask = color_detector.mask(frame)
+        if vision_plan.possible_categories:
+            return cv2.bitwise_or(color_mask, objectness_detector.mask(frame))
+        return color_mask
     return detector.high_recall_mask(frame)
+
+
+def best_detection(*detections) -> TargetDetection:
+    detected = [detection for detection in detections if detection.detected]
+    if not detected:
+        return TargetDetection(False)
+    return max(detected, key=lambda detection: detection.confidence)
 
 
 def build_semantic_scorer(
@@ -485,24 +528,63 @@ def build_semantic_scorer(
     return LocalSemanticVisionScorer()
 
 
-def should_run_full_frame_semantic(mode: str, *, detected: bool) -> bool:
+def semantic_failure_result(model_name: str, error: str, *, full_frame: bool = False) -> SemanticVisionResult:
+    tags = ["semantic_error"]
+    if full_frame:
+        tags.append("full_frame_scan")
+    return SemanticVisionResult(
+        score=0.2,
+        decision=SemanticDecision.NEEDS_REVIEW,
+        explanation=f"Semantic scorer failed after retries: {error}",
+        model_name=model_name,
+        tags=tags,
+        needs_human_review=True,
+    )
+
+
+def should_run_full_frame_semantic(mode: str, *, detected: bool, crop_decision: SemanticDecision | None = None) -> bool:
     if mode == "all":
         return True
     if mode == "misses":
-        return not detected
+        return not detected or crop_decision == SemanticDecision.REJECT
     return False
 
 
 def select_shortlist_indexes(results: list[dict], *, max_items: int, min_score: float) -> list[int]:
     scored: list[tuple[float, int]] = []
     for index, result in enumerate(results, start=1):
-        if not result.get("detected"):
+        if not has_reviewable_semantic_signal(result):
             continue
         score = float(result.get("final_score", result.get("semantic", {}).get("score", 0.0)))
-        if score >= min_score:
-            scored.append((score, index))
+        review_priority = float(result.get("review_priority", score))
+        if score >= min_score or review_priority >= min_score:
+            scored.append((review_priority, index))
     scored.sort(reverse=True)
     return [index for _, index in scored[:max(0, max_items)]]
+
+
+def has_reviewable_semantic_signal(result: dict) -> bool:
+    return bool(result.get("detected") or result.get("full_frame_semantic"))
+
+
+def candidate_review_priority(
+    *,
+    detection: TargetDetection,
+    semantic: SemanticVisionResult,
+    full_frame_result: SemanticVisionResult | None,
+    final_score: float,
+    final_decision: SemanticDecision,
+    semantic_error: str | None = None,
+) -> tuple[float, list[str]]:
+    ranking = rank_candidate(
+        detection=detection,
+        semantic=semantic,
+        full_frame_result=full_frame_result,
+        final_score=final_score,
+        final_decision=final_decision,
+        semantic_error=semantic_error,
+    )
+    return ranking.review_priority, ranking.reasons
 
 
 def load_labels(path: str | Path | None) -> dict[tuple[str, int | None], dict]:
@@ -529,12 +611,15 @@ def load_labels(path: str | Path | None) -> dict[tuple[str, int | None], dict]:
 def evaluate_results(results: list[dict], *, threshold: float) -> dict:
     labeled = [result for result in results if "label" in result and "error" not in result]
     true_positive = false_positive = true_negative = false_negative = 0
+    capture_true_positive = capture_false_positive = capture_true_negative = capture_false_negative = 0
     false_positives = []
     false_negatives = []
+    capture_false_positives = []
+    capture_false_negatives = []
     for result in labeled:
         expected = bool(result["label"]["expected_match"])
-        score = float(result.get("final_score", result.get("semantic", {}).get("score", 0.0)))
         predicted = is_predicted_match(result, threshold=threshold)
+        captured = is_captured_for_review(result)
         if predicted and expected:
             true_positive += 1
         elif predicted and not expected:
@@ -545,13 +630,28 @@ def evaluate_results(results: list[dict], *, threshold: float) -> dict:
         else:
             false_negative += 1
             false_negatives.append(_shortlist_entry(result))
+        if captured and expected:
+            capture_true_positive += 1
+        elif captured and not expected:
+            capture_false_positive += 1
+            capture_false_positives.append(_shortlist_entry(result))
+        elif not captured and not expected:
+            capture_true_negative += 1
+        else:
+            capture_false_negative += 1
+            capture_false_negatives.append(_shortlist_entry(result))
     precision = true_positive / (true_positive + false_positive) if true_positive + false_positive else 0.0
     recall = true_positive / (true_positive + false_negative) if true_positive + false_negative else 0.0
     f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
     accuracy = (true_positive + true_negative) / len(labeled) if labeled else 0.0
+    capture_precision = capture_true_positive / (capture_true_positive + capture_false_positive) if capture_true_positive + capture_false_positive else 0.0
+    capture_recall = capture_true_positive / (capture_true_positive + capture_false_negative) if capture_true_positive + capture_false_negative else 0.0
+    capture_f1 = 2 * capture_precision * capture_recall / (capture_precision + capture_recall) if capture_precision + capture_recall else 0.0
+    capture_accuracy = (capture_true_positive + capture_true_negative) / len(labeled) if labeled else 0.0
     return {
         "labeled_count": len(labeled),
         "threshold": threshold,
+        "metric_mode": "confirmed_match",
         "true_positive": true_positive,
         "false_positive": false_positive,
         "true_negative": true_negative,
@@ -562,6 +662,18 @@ def evaluate_results(results: list[dict], *, threshold: float) -> dict:
         "accuracy": round(accuracy, 4),
         "false_positives": false_positives[:25],
         "false_negatives": false_negatives[:25],
+        "analyst_capture": {
+            "true_positive": capture_true_positive,
+            "false_positive": capture_false_positive,
+            "true_negative": capture_true_negative,
+            "false_negative": capture_false_negative,
+            "precision": round(capture_precision, 4),
+            "recall": round(capture_recall, 4),
+            "f1": round(capture_f1, 4),
+            "accuracy": round(capture_accuracy, 4),
+            "false_positives": capture_false_positives[:25],
+            "false_negatives": capture_false_negatives[:25],
+        },
     }
 
 
@@ -571,7 +683,17 @@ def is_predicted_match(result: dict, *, threshold: float) -> bool:
     if decision == "LIKELY_MATCH":
         return score >= threshold
     if decision == "POSSIBLE_MATCH":
-        return score >= threshold and bool(result.get("detected"))
+        return score >= threshold and has_reviewable_semantic_signal(result)
+    return False
+
+
+def is_captured_for_review(result: dict) -> bool:
+    decision = str(result.get("final_decision", result.get("semantic", {}).get("decision", "")))
+    score = float(result.get("final_score", result.get("semantic", {}).get("score", 0.0)))
+    if decision in {"LIKELY_MATCH", "POSSIBLE_MATCH"}:
+        return has_reviewable_semantic_signal(result)
+    if decision == "NEEDS_REVIEW":
+        return has_reviewable_semantic_signal(result) and score >= 0.2
     return False
 
 
@@ -579,13 +701,20 @@ def _shortlist_entry(result: dict) -> dict:
     semantic = result.get("semantic", {})
     red_audit = result.get("red_audit", {})
     return {
+        "candidate_id": result.get("candidate_id"),
         "image_path": result.get("image_path"),
         "frame_index": result.get("frame_index"),
         "timestamp_s": result.get("timestamp_s"),
         "score": result.get("final_score", semantic.get("score")),
         "decision": result.get("final_decision", semantic.get("decision")),
         "detector_confidence": result.get("detector_confidence"),
+        "proposal_score": result.get("proposal_score"),
+        "semantic_score": result.get("semantic_score"),
+        "uncertainty_score": result.get("uncertainty_score"),
+        "mission_relevance_score": result.get("mission_relevance_score"),
         "review_priority": result.get("review_priority"),
+        "review_reasons": result.get("review_reasons", []),
+        "candidate_rank": result.get("candidate_rank", {}),
         "bbox": result.get("bbox"),
         "crop_path": result.get("crop_path"),
         "debug_path": result.get("debug_path"),

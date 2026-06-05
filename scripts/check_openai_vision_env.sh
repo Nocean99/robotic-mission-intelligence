@@ -2,6 +2,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+source scripts/load_project_env.sh
 
 echo "OpenAI vision encoder environment check"
 echo

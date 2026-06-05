@@ -16,6 +16,8 @@ from autonomy.red_block_detector import RedBlockDetector
 from autonomy.semantic_vision import (
     LocalSemanticVisionScorer,
     OpenAIVisionLanguageScorer,
+    _semantic_prompt,
+    category_specific_guidance,
     crop_detection,
     image_to_data_url,
     parse_semantic_json,
@@ -104,6 +106,32 @@ def test_semantic_json_parser_accepts_model_response() -> None:
     assert parsed["tags"] == ["vehicle"]
 
 
+def test_semantic_json_parser_normalizes_score_to_decision_band() -> None:
+    parsed = parse_semantic_json(
+        '{"score": 0.95, "decision": "NEEDS_REVIEW", "explanation": "ambiguous", "tags": [], "needs_human_review": true}'
+    )
+    assert parsed["score"] == 0.54
+    assert parsed["decision"] == SemanticDecision.NEEDS_REVIEW
+
+
+def test_openai_prompt_keeps_ambiguous_sar_cases_in_needs_review() -> None:
+    objective = parse_mission_request("Search these aerial images for people hiding in grass")
+    prompt = _semantic_prompt(objective, context="full drone frame")
+    assert "NEEDS_REVIEW means the image is ambiguous" in prompt
+    assert "Do not mark vehicles, equipment, grass patches" in prompt
+    assert "partially hidden person is visibly present" in prompt
+    assert "human body, limb, head, clothing on a person" in prompt
+    assert "LIKELY_MATCH 0.75-1.0" in prompt
+
+
+def test_openai_prompt_uses_vehicle_specific_guidance() -> None:
+    objective = parse_mission_request("Search these aerial images for vehicles relevant to incident response")
+    guidance = category_specific_guidance(objective)
+    assert "car, truck, SUV, van, jeep, ATV" in guidance
+    assert "partly visible" in guidance
+    assert "campfires, people, grass" in guidance
+
+
 def test_image_to_data_url_encodes_jpeg() -> None:
     data_url = image_to_data_url(red_block_image())
     assert data_url.startswith("data:image/jpeg;base64,")
@@ -155,6 +183,9 @@ if __name__ == "__main__":
         test_high_recall_finds_darker_red_region,
         test_local_full_frame_scan_returns_review_result,
         test_semantic_json_parser_accepts_model_response,
+        test_semantic_json_parser_normalizes_score_to_decision_band,
+        test_openai_prompt_keeps_ambiguous_sar_cases_in_needs_review,
+        test_openai_prompt_uses_vehicle_specific_guidance,
         test_image_to_data_url_encodes_jpeg,
         test_openai_scorer_initializes_with_explicit_settings,
         test_openai_scorer_rejects_invalid_detail,

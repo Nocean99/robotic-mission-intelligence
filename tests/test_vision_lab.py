@@ -13,13 +13,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from autonomy.vision_lab import (
     build_semantic_scorer,
+    candidate_review_priority,
     collect_image_paths,
     collect_video_paths,
+    detect_with_mode,
     evaluate_results,
     load_labels,
     run_video_vision_lab,
     run_vision_lab,
+    select_shortlist_indexes,
+    should_run_full_frame_semantic,
 )
+from autonomy.color_proposal_detector import MissionColorProposalDetector
+from autonomy.mission_vision_plan import create_mission_vision_plan
+from autonomy.objectness_proposal_detector import ObjectnessProposalDetector
+from autonomy.semantic_vision import LocalSemanticVisionScorer
+from autonomy.types import SemanticDecision, SemanticVisionResult, TargetDetection
 
 
 def red_block_image() -> np.ndarray:
@@ -54,6 +63,15 @@ def test_vision_lab_writes_report_and_debug_images() -> None:
         result = report["results"][0]
         assert result["detected"] is True
         assert result["semantic"]["score"] > 0
+        assert result["candidate_id"]
+        assert set(result["candidate_rank"]) >= {
+            "proposal_score",
+            "semantic_score",
+            "uncertainty_score",
+            "mission_relevance_score",
+            "review_priority",
+        }
+        assert result["review_priority"] == result["candidate_rank"]["review_priority"]
         assert Path(result["debug_path"]).exists()
         assert Path(result["crop_path"]).exists()
         assert "red_audit" in result
@@ -180,6 +198,57 @@ def test_label_loader_and_metric_helpers() -> None:
     )
     assert metrics["true_positive"] == 1
     assert metrics["false_negative"] == 1
+    assert metrics["analyst_capture"]["true_positive"] == 1
+    assert metrics["analyst_capture"]["false_negative"] == 1
+
+
+def test_full_frame_semantic_miss_can_enter_shortlist_and_metrics() -> None:
+    results = [
+        {
+            "detected": False,
+            "final_score": 0.81,
+            "final_decision": "POSSIBLE_MATCH",
+            "full_frame_semantic": {"score": 0.81, "decision": "POSSIBLE_MATCH"},
+            "label": {"expected_match": True},
+        }
+    ]
+    assert select_shortlist_indexes(results, max_items=10, min_score=0.25) == [1]
+    metrics = evaluate_results(results, threshold=0.25)
+    assert metrics["true_positive"] == 1
+    assert metrics["false_negative"] == 0
+
+
+def test_needs_review_counts_as_analyst_capture_not_confirmed_match() -> None:
+    results = [
+        {
+            "detected": False,
+            "final_score": 0.42,
+            "final_decision": "NEEDS_REVIEW",
+            "full_frame_semantic": {"score": 0.42, "decision": "NEEDS_REVIEW"},
+            "label": {"expected_match": True},
+        }
+    ]
+    metrics = evaluate_results(results, threshold=0.25)
+    assert metrics["false_negative"] == 1
+    assert metrics["analyst_capture"]["true_positive"] == 1
+    assert metrics["analyst_capture"]["false_negative"] == 0
+
+
+def test_mission_color_mode_uses_objectness_fallback_for_category_targets() -> None:
+    image = np.zeros((240, 320, 3), dtype=np.uint8)
+    image[:] = (35, 115, 35)
+    cv2.rectangle(image, (125, 85), (205, 145), (210, 210, 215), -1)
+    plan = create_mission_vision_plan("Search the field for a person wearing an orange vest")
+    detection = detect_with_mode(
+        None,
+        MissionColorProposalDetector(plan, min_area_px=30),
+        ObjectnessProposalDetector(min_area_px=30),
+        plan,
+        image,
+        "mission-color",
+    )
+    assert detection.detected
+    assert detection.bbox is not None
 
 
 def test_vision_lab_records_full_frame_semantic_scan() -> None:
@@ -199,6 +268,62 @@ def test_vision_lab_records_full_frame_semantic_scan() -> None:
         assert result["detected"] is False
         assert result["full_frame_semantic"] is not None
         assert result["final_score"] == result["full_frame_semantic"]["score"]
+
+
+def test_rejected_crop_triggers_full_frame_semantic_scan() -> None:
+    assert should_run_full_frame_semantic(
+        "misses",
+        detected=True,
+        crop_decision=SemanticDecision.REJECT,
+    )
+
+
+def test_candidate_review_priority_explains_likely_match() -> None:
+    priority, reasons = candidate_review_priority(
+        detection=TargetDetection(True, confidence=0.8),
+        semantic=SemanticVisionResult(
+            score=0.82,
+            decision=SemanticDecision.LIKELY_MATCH,
+            explanation="clear target",
+            model_name="test",
+        ),
+        full_frame_result=None,
+        final_score=0.82,
+        final_decision=SemanticDecision.LIKELY_MATCH,
+    )
+    assert priority > 0.9
+    assert "likely mission match" in reasons
+
+
+def test_vision_lab_records_semantic_errors_without_aborting() -> None:
+    class FailingScorer(LocalSemanticVisionScorer):
+        model_name = "failing-test-scorer"
+
+        def score(self, **kwargs):
+            raise RuntimeError("temporary outage")
+
+    with TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        image_path = tmp_path / "positive.png"
+        cv2.imwrite(str(image_path), red_block_image())
+        previous_builder = __import__("autonomy.vision_lab", fromlist=["build_semantic_scorer"]).build_semantic_scorer
+        import autonomy.vision_lab as vision_lab
+
+        try:
+            vision_lab.build_semantic_scorer = lambda *args, **kwargs: FailingScorer()
+            report_path = run_vision_lab(
+                mission_request="Search for a red object",
+                image_paths=[image_path],
+                output_dir=tmp_path / "out",
+            )
+        finally:
+            vision_lab.build_semantic_scorer = previous_builder
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        result = report["results"][0]
+        assert report["summary"]["semantic_errors"] == 1
+        assert "temporary outage" in result["semantic_error"]
+        assert result["semantic"]["decision"] == "NEEDS_REVIEW"
+        assert result["semantic"]["score"] >= 0.2
 
 
 def test_build_openai_scorer_passes_runtime_settings() -> None:
@@ -231,7 +356,13 @@ if __name__ == "__main__":
         test_video_vision_lab_samples_frames,
         test_vision_lab_evaluates_labeled_images,
         test_label_loader_and_metric_helpers,
+        test_full_frame_semantic_miss_can_enter_shortlist_and_metrics,
+        test_needs_review_counts_as_analyst_capture_not_confirmed_match,
+        test_mission_color_mode_uses_objectness_fallback_for_category_targets,
         test_vision_lab_records_full_frame_semantic_scan,
+        test_rejected_crop_triggers_full_frame_semantic_scan,
+        test_candidate_review_priority_explains_likely_match,
+        test_vision_lab_records_semantic_errors_without_aborting,
         test_build_openai_scorer_passes_runtime_settings,
     ]
     for test in tests:

@@ -3,8 +3,10 @@ from __future__ import annotations
 import base64
 import json
 import os
+import time
 from pathlib import Path
 from typing import Protocol
+from urllib import error as urlerror
 from urllib import request as urlrequest
 
 import cv2
@@ -142,11 +144,13 @@ class OpenAIVisionLanguageScorer:
         api_key: str | None = None,
         detail: str = "auto",
         timeout_s: float = 45.0,
+        max_retries: int = 3,
     ) -> None:
         self.model_name = model or os.environ.get("OPENAI_VISION_MODEL", "")
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
         self.detail = detail
         self.timeout_s = timeout_s
+        self.max_retries = max(0, max_retries)
         if self.detail not in {"auto", "low", "high"}:
             raise ValueError("OpenAI image detail must be one of: auto, low, high.")
         if not self.model_name:
@@ -205,8 +209,7 @@ class OpenAIVisionLanguageScorer:
             },
             method="POST",
         )
-        with urlrequest.urlopen(req, timeout=self.timeout_s) as response:
-            payload = json.loads(response.read().decode("utf-8"))
+        payload = self._open_with_retries(req)
         text = extract_response_text(payload)
         parsed = parse_semantic_json(text)
         return SemanticVisionResult(
@@ -217,6 +220,21 @@ class OpenAIVisionLanguageScorer:
             tags=parsed["tags"],
             needs_human_review=parsed["needs_human_review"],
         )
+
+    def _open_with_retries(self, req: urlrequest.Request) -> dict:
+        for attempt in range(self.max_retries + 1):
+            try:
+                with urlrequest.urlopen(req, timeout=self.timeout_s) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            except urlerror.HTTPError as exc:
+                if exc.code not in {408, 409, 429, 500, 502, 503, 504} or attempt >= self.max_retries:
+                    raise
+                time.sleep(min(2.0 * (2 ** attempt), 12.0))
+            except urlerror.URLError:
+                if attempt >= self.max_retries:
+                    raise
+                time.sleep(min(2.0 * (2 ** attempt), 12.0))
+        raise RuntimeError("OpenAI request retry loop exited unexpectedly.")
 
 
 def image_to_data_url(image_bgr: np.ndarray, *, max_width_px: int = 1024, quality: int = 82) -> str:
@@ -268,6 +286,7 @@ def parse_semantic_json(text: str) -> dict:
         decision = SemanticDecision(raw_decision)
     except ValueError:
         decision = SemanticDecision.NEEDS_REVIEW
+    score, decision = normalize_score_decision(score, decision)
     tags = data.get("tags", [])
     if not isinstance(tags, list):
         tags = []
@@ -280,19 +299,81 @@ def parse_semantic_json(text: str) -> dict:
     }
 
 
+def normalize_score_decision(score: float, decision: SemanticDecision) -> tuple[float, SemanticDecision]:
+    if decision == SemanticDecision.LIKELY_MATCH:
+        score = max(score, 0.75)
+    elif decision == SemanticDecision.POSSIBLE_MATCH:
+        score = min(max(score, 0.55), 0.74)
+    elif decision == SemanticDecision.NEEDS_REVIEW:
+        score = min(max(score, 0.2), 0.54)
+    else:
+        score = min(score, 0.19)
+    return score, decision
+
+
 def _semantic_prompt(objective: MissionObjective, *, context: str) -> str:
     return (
         f"You are scoring a {context} from a search-and-rescue drone. "
         "Compare the image to the mission request. Return ONLY JSON with keys: "
         "score number 0.0-1.0, decision one of REJECT/POSSIBLE_MATCH/LIKELY_MATCH/NEEDS_REVIEW, "
         "explanation string, tags array, needs_human_review boolean. "
-        "Favor recall for SAR: uncertain plausible matches should be POSSIBLE_MATCH or NEEDS_REVIEW, "
-        "not confidently rejected. Do not claim certainty for exact identity if the image is unclear.\n"
+        f"{base_decision_rubric()} "
+        f"{category_specific_guidance(objective)} "
         f"Mission request: {objective.raw_request}\n"
         f"Target description: {objective.target_description}\n"
         f"Extracted colors: {', '.join(objective.extracted_colors) or 'unknown'}\n"
         f"Extracted categories: {', '.join(objective.extracted_categories) or 'unknown'}"
     )
+
+
+def base_decision_rubric() -> str:
+    return (
+        "Use this decision rubric strictly: "
+        "LIKELY_MATCH means the requested target is clearly visible and matches the mission description. "
+        "POSSIBLE_MATCH means there is visible target evidence, but details are incomplete or partly occluded. "
+        "NEEDS_REVIEW means the image is ambiguous, suspicious, low-resolution, cluttered, or might contain the target but visible evidence is insufficient. "
+        "REJECT means no plausible target evidence is visible. "
+        "Favor recall for safety-critical missions by using NEEDS_REVIEW for ambiguous cases instead of REJECT, but do not inflate ambiguous background clutter to POSSIBLE_MATCH or LIKELY_MATCH. "
+        "Use score bands consistently: LIKELY_MATCH 0.75-1.0, POSSIBLE_MATCH 0.55-0.74, NEEDS_REVIEW 0.20-0.54, REJECT 0.0-0.19. "
+        "Do not claim certainty for exact identity if the image is unclear."
+    )
+
+
+def category_specific_guidance(objective: MissionObjective) -> str:
+    categories = set(objective.extracted_categories)
+    parts = []
+    if "person" in categories:
+        parts.append(
+            "Person guidance: If a partially hidden person is visibly present, mark POSSIBLE_MATCH rather than NEEDS_REVIEW unless the visible evidence is only an indistinct blob. "
+            "If multiple people, a person lying down, or a person partly concealed by grass is visible, use POSSIBLE_MATCH or LIKELY_MATCH depending on clarity. "
+            "Do not mark vehicles, equipment, grass patches, shadows, or grey/green blobs as person matches unless a human body, limb, head, clothing on a person, or group of people is visibly present."
+        )
+    if "vehicle" in categories:
+        parts.append(
+            "Vehicle guidance: A visible car, truck, SUV, van, jeep, ATV, or similar vehicle should be POSSIBLE_MATCH or LIKELY_MATCH even if people are nearby. "
+            "Do not reject a vehicle because it is partially occluded, parked near people, or only partly visible; use POSSIBLE_MATCH when the body, wheels, windshield, roofline, or cargo bed is visible. "
+            "Do not mark campfires, people, grass, isolated shadows, or small non-vehicle objects as vehicle matches."
+        )
+    if "boat" in categories:
+        parts.append(
+            "Boat guidance: A visible boat, ship, hull, canoe, kayak, raft, docked vessel, or partially submerged vessel should be POSSIBLE_MATCH or LIKELY_MATCH. "
+            "Use NEEDS_REVIEW for ambiguous floating debris or shoreline clutter unless boat structure is visible."
+        )
+    if "debris" in categories:
+        parts.append(
+            "Debris guidance: Scattered, damaged, irregular, or displaced material can be a match when it fits the mission context. "
+            "Use NEEDS_REVIEW for ordinary repeated infrastructure or natural texture without visible disturbance."
+        )
+    if "signal" in categories:
+        parts.append(
+            "Signal guidance: Bright markers, smoke, fire, flares, high-contrast cloth, or deliberately arranged signals should be POSSIBLE_MATCH or LIKELY_MATCH. "
+            "Use NEEDS_REVIEW for small bright clutter when intent is unclear."
+        )
+    if not parts:
+        parts.append(
+            "General guidance: Judge the visible evidence against the mission description and keep ambiguous but potentially relevant evidence in NEEDS_REVIEW."
+        )
+    return " ".join(parts) + "\n"
 
 
 def crop_detection(frame_bgr: np.ndarray, detection: TargetDetection, padding_px: int = 24) -> np.ndarray | None:

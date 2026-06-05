@@ -1,0 +1,127 @@
+{
+  "suite_name": "mission-intelligence-core",
+  "benchmarks": [
+    {
+      "id": "people_grass_rescue",
+      "enabled": true,
+      "mission_type": "people",
+      "mission_request": "Search these aerial images for people who may need rescue, including people hiding or lying in grass",
+      "paths": ["/Users/noah/Desktop/drone vision test"],
+      "labels_csv": "config/vision_labels_people_drone_vision_test.csv",
+      "semantic_vision": "openai",
+      "openai_detail": "high",
+      "full_frame_semantic": "misses",
+      "eval_threshold": 0.25,
+      "max_saved_candidates": 50
+    },
+    {
+      "id": "vehicles_aerial_search",
+      "enabled": true,
+      "mission_type": "vehicle",
+      "mission_request": "Search these aerial images for vehicles that may be relevant to a rescue or incident response",
+      "paths": ["/Users/noah/Desktop/drone vision test"],
+      "labels_csv": "config/vision_labels_vehicles_drone_vision_test.csv",
+      "semantic_vision": "openai",
+      "openai_detail": "high",
+      "full_frame_semantic": "misses",
+      "eval_threshold": 0.25,
+      "max_saved_candidates": 50
+    },
+    {
+      "id": "boats_water_search_placeholder",
+      "enabled": false,
+      "mission_type": "boat",
+      "mission_request": "Search water and shoreline imagery for a distressed or sinking boat",
+      "paths": ["/path/to/boat_dataset"],
+      "labels_csv": "/path/to/boat_labels.csv",
+      "semantic_vision": "openai",
+      "openai_detail": "high",
+      "full_frame_semantic": "misses",
+      "dataset_requirements": [
+        "boats and non-boats on open water",
+        "boats near docks or shorelines",
+        "shoreline clutter and waves as negatives"
+      ]
+    },
+    {
+      "id": "debris_incident_search_placeholder",
+      "enabled": false,
+      "mission_type": "debris",
+      "mission_request": "Search aerial imagery for crash debris, damaged objects, or unusual scattered material",
+      "paths": ["/path/to/debris_dataset"],
+      "labels_csv": "/path/to/debris_labels.csv",
+      "semantic_vision": "openai",
+      "openai_detail": "high",
+      "full_frame_semantic": "misses",
+      "dataset_requirements": [
+        "crash-like debris and scattered material",
+        "ordinary rocks, logs, construction clutter, and shadows as negatives",
+        "small/distant debris examples"
+      ]
+    },
+    {
+      "id": "signal_marker_search_placeholder",
+      "enabled": false,
+      "mission_type": "signal",
+      "mission_request": "Search aerial imagery for distress signals, markers, smoke, bright cloth, or other responder-visible signals",
+      "paths": ["/path/to/signal_dataset"],
+      "labels_csv": "/path/to/signal_labels.csv",
+      "semantic_vision": "openai",
+      "openai_detail": "high",
+      "full_frame_semantic": "misses",
+      "dataset_requirements": [
+        "bright cloth, flare/smoke/fire, SOS-like markers",
+        "small colored clutter as negatives",
+        "partially occluded or distant signals"
+      ]
+    },
+    {
+      "id": "fire_smoke_incident_placeholder",
+      "enabled": false,
+      "mission_type": "fire_smoke",
+      "mission_request": "Search aerial imagery for active fire, smoke plumes, hotspots, or burn indicators",
+      "paths": ["/path/to/fire_smoke_dataset"],
+      "labels_csv": "/path/to/fire_smoke_labels.csv",
+      "semantic_vision": "openai",
+      "openai_detail": "high",
+      "full_frame_semantic": "misses",
+      "dataset_requirements": [
+        "visible smoke, flame, charred ground, and haze",
+        "clouds, dust, fog, and bright sunlight as negatives",
+        "small early-stage smoke columns"
+      ]
+    },
+    {
+      "id": "structure_damage_placeholder",
+      "enabled": false,
+      "mission_type": "structure_damage",
+      "mission_request": "Search aerial imagery for damaged buildings, roof damage, blocked access, or structural collapse",
+      "paths": ["/path/to/structure_damage_dataset"],
+      "labels_csv": "/path/to/structure_damage_labels.csv",
+      "semantic_vision": "openai",
+      "openai_detail": "high",
+      "full_frame_semantic": "misses",
+      "dataset_requirements": [
+        "damaged and intact structures",
+        "blocked roads or entrances",
+        "construction sites as hard negatives"
+      ]
+    },
+    {
+      "id": "animal_livestock_search_placeholder",
+      "enabled": false,
+      "mission_type": "animal",
+      "mission_request": "Search aerial imagery for missing animals or livestock in fields, woods, and near structures",
+      "paths": ["/path/to/animal_dataset"],
+      "labels_csv": "/path/to/animal_labels.csv",
+      "semantic_vision": "openai",
+      "openai_detail": "high",
+      "full_frame_semantic": "misses",
+      "dataset_requirements": [
+        "animals in open fields and partially hidden in brush",
+        "rocks, shadows, logs, and people as negatives",
+        "small/distant animal examples"
+      ]
+    }
+  ]
+}

@@ -20,6 +20,7 @@ def build_report_viewer(report_path: str | Path, output_path: str | Path | None 
 def render_html(data: dict, base_dir: Path) -> str:
     summary = data.get("summary") or {}
     evaluation = data.get("evaluation") or {}
+    analyst_capture = evaluation.get("analyst_capture") or {}
     vision_plan = data.get("vision_plan") or {}
     false_positives = evaluation.get("false_positives") or []
     false_negatives = evaluation.get("false_negatives") or []
@@ -53,6 +54,7 @@ def render_html(data: dict, base_dir: Path) -> str:
         {metric("Precision", evaluation.get("precision"))}
         {metric("Recall", evaluation.get("recall"))}
         {metric("F1", evaluation.get("f1"))}
+        {metric("Capture Recall", analyst_capture.get("recall"))}
         {metric("False Positives", evaluation.get("false_positive"))}
         {metric("False Negatives", evaluation.get("false_negative"))}
       </section>
@@ -65,6 +67,11 @@ def render_html(data: dict, base_dir: Path) -> str:
           {chips("Context", vision_plan.get("context_hints"))}
           {chips("Proposal Modes", vision_plan.get("proposal_modes"))}
         </div>
+      </section>
+
+      <section class="panel">
+        <h2>Metric Modes</h2>
+        <p class="muted">Precision, recall, and F1 measure confirmed matches only. Capture recall also counts NEEDS_REVIEW items as successfully preserved for analyst review.</p>
       </section>
 
       <section class="split">
