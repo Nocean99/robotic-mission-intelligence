@@ -56,6 +56,7 @@ def test_load_report_payload_and_save_review() -> None:
                     "candidate_key": "candidate-42",
                     "candidate_id": "candidate-42",
                     "decision": "reject",
+                    "reason_tag": "debris",
                     "reason": "shoreline debris",
                     "notes": "Looks relevant",
                 }
@@ -64,6 +65,7 @@ def test_load_report_payload_and_save_review() -> None:
             reviews = analyst_server.load_reviews(report_path)
             assert reviews["candidate-42"]["candidate_id"] == "candidate-42"
             assert reviews["candidate-42"]["decision"] == "reject"
+            assert reviews["candidate-42"]["reason_tag"] == "debris"
             assert reviews["candidate-42"]["reason"] == "shoreline debris"
             assert reviews["candidate-42"]["updated_at"]
             memory = analyst_server.build_mission_memory(root)

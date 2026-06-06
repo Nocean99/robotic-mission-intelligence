@@ -165,13 +165,17 @@ def save_review(payload: dict) -> dict:
     if not candidate_key:
         return {"ok": False, "error": "candidate_key is required"}
     decision = normalize_decision(payload.get("decision") or payload.get("status") or "investigate")
+    reason_tag = normalize_reason_tag(payload.get("reason_tag"))
     reason = str(payload.get("reason") or "").strip()
+    if not reason and reason_tag:
+        reason = reason_tag.replace("_", " ")
     notes = str(payload.get("notes") or "")
     reviews = load_reviews(report_path)
     reviews[candidate_key] = {
         "candidate_id": str(payload.get("candidate_id") or candidate_key),
         "decision": decision,
         "status": decision,
+        "reason_tag": reason_tag,
         "reason": reason,
         "notes": notes,
         "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -207,6 +211,19 @@ def normalize_decision(value) -> str:
     if decision not in {"approve", "reject", "investigate"}:
         return "investigate"
     return decision
+
+
+def normalize_reason_tag(value) -> str:
+    tag = str(value or "").strip().lower().replace(" ", "_").replace("-", "_")
+    allowed = {
+        "person_visible",
+        "too_small",
+        "vegetation",
+        "shadow",
+        "debris",
+        "false_alarm",
+    }
+    return tag if tag in allowed else ""
 
 
 def resolve_local_path(path_value: str | None) -> Path | None:

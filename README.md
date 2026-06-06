@@ -217,6 +217,18 @@ Run the configured suite:
 ./scripts/run_mission_benchmark_suite.sh
 ```
 
+Convert a YOLOv8 person dataset into Aegis benchmark labels:
+
+```bash
+./scripts/import_yolo_person_benchmark.sh "/path/to/yolo_dataset"
+```
+
+This generates:
+
+```text
+datasets/benchmarks/people/sard_labels.csv
+```
+
 The suite writes:
 
 ```text
@@ -231,11 +243,25 @@ The key benchmark distinction is:
 
 For mission workflows, missing a possible target is usually worse than showing an analyst a few extra uncertain images.
 
+Recent SAR benchmark:
+
+- evaluated 5,712 annotated search-and-rescue images
+- ran a full local triage pass across the complete dataset
+- tested two smaller OpenAI review samples instead of sending the full dataset to the API
+- improved API-sample capture precision from 70% to 91% with review-priority sampling
+- kept capture recall near 90%, meaning likely person evidence was still preserved for analyst review
+
 Recent benchmark direction:
 
 - full-frame fallback significantly improved target capture
 - vehicle benchmark performance improved strongly after crop-reject fallback
 - remaining work is reducing noisy review items while preserving recall
+
+Latest people-search benchmark notes:
+
+```text
+docs/SARD_BENCHMARK_REPORT.md
+```
 
 ## Mission Memory
 
@@ -387,6 +413,7 @@ Run focused mission-intelligence tests:
 ```bash
 python3 tests/test_vision_lab.py
 python3 tests/test_mission_memory.py
+python3 tests/test_yolo_benchmark_importer.py
 python3 tests/test_analyst_server.py
 python3 tests/test_mission_benchmark_suite.py
 python3 tests/test_mission_evaluation.py

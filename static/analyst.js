@@ -219,6 +219,9 @@ function candidateCard(item) {
         <span>Detector <strong>${display(item.detector_confidence)}</strong></span>
         <span>BBox <strong>${escapeHtml(JSON.stringify(item.bbox || []))}</strong></span>
       </div>
+      <select class="reason-tag" aria-label="Reason tag">
+        ${reasonTagOptions(review.reason_tag || "")}
+      </select>
       <input class="reason-input" placeholder="Decision reason, e.g. shoreline debris" value="${escapeHtml(review.reason || "")}" />
       <textarea placeholder="Review notes">${escapeHtml(review.notes || "")}</textarea>
       <div class="review-actions">
@@ -232,13 +235,14 @@ function candidateCard(item) {
     button.addEventListener("click", async () => {
       const notes = card.querySelector("textarea").value;
       const reason = card.querySelector(".reason-input").value;
-      await saveReview(key, item.candidate_id || key, button.dataset.decision, reason, notes);
+      const reasonTag = card.querySelector(".reason-tag").value;
+      await saveReview(key, item.candidate_id || key, button.dataset.decision, reasonTag, reason, notes);
     });
   });
   return card;
 }
 
-async function saveReview(candidateKeyValue, candidateId, decision, reason, notes) {
+async function saveReview(candidateKeyValue, candidateId, decision, reasonTag, reason, notes) {
   const response = await fetch("/api/review", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -247,6 +251,7 @@ async function saveReview(candidateKeyValue, candidateId, decision, reason, note
       candidate_key: candidateKeyValue,
       candidate_id: candidateId,
       decision,
+      reason_tag: reasonTag,
       reason,
       notes,
     }),
@@ -332,6 +337,21 @@ function sortByReviewPriority(items) {
 function formatCounts(counts) {
   const entries = Object.entries(counts || {});
   return entries.length ? entries.slice(0, 5).map(([key, value]) => `${key} ${value}`).join(", ") : "none";
+}
+
+function reasonTagOptions(selected) {
+  const tags = [
+    ["", "Reason tag"],
+    ["person_visible", "Person visible"],
+    ["too_small", "Too small"],
+    ["vegetation", "Vegetation"],
+    ["shadow", "Shadow"],
+    ["debris", "Debris"],
+    ["false_alarm", "False alarm"],
+  ];
+  return tags
+    .map(([value, label]) => `<option value="${escapeHtml(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`)
+    .join("");
 }
 
 function display(value) {

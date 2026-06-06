@@ -7,7 +7,7 @@ from tempfile import TemporaryDirectory
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from autonomy.mission_memory import build_mission_memory, mission_memory_snapshot
+from autonomy.mission_memory import _name_terms, build_mission_memory, mission_memory_snapshot
 
 
 def test_mission_memory_summarizes_reports_and_reviews() -> None:
@@ -70,8 +70,18 @@ def test_mission_memory_snapshot_uses_report_patterns() -> None:
     assert snapshot["recommended_data"]
 
 
+def test_mission_memory_ignores_dataset_filename_artifacts() -> None:
+    terms = _name_terms({"image_path": "gss1011_jpg.rf.289d05af8c02daefd10a4159059e01ba.jpg"})
+    assert terms == []
+    assert _name_terms({"image_path": "bright shoreline debris.jpg"}) == ["bright", "shoreline", "debris"]
+
+
 if __name__ == "__main__":
-    tests = [test_mission_memory_summarizes_reports_and_reviews, test_mission_memory_snapshot_uses_report_patterns]
+    tests = [
+        test_mission_memory_summarizes_reports_and_reviews,
+        test_mission_memory_snapshot_uses_report_patterns,
+        test_mission_memory_ignores_dataset_filename_artifacts,
+    ]
     for test in tests:
         test()
         print(f"PASS {test.__name__}")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -196,8 +197,24 @@ def _name_terms(item) -> list[str]:
     else:
         path = str(item)
     name = Path(path).stem.lower()
-    ignored = {"and", "with", "the", "for", "in", "on", "a", "an", "jpg", "png", "jpeg"}
-    return [part for part in name.replace("-", " ").replace("_", " ").split() if len(part) > 2 and part not in ignored]
+    name = re.sub(r"\.rf\.[a-f0-9]+", " ", name)
+    tokens = re.split(r"[^a-z0-9]+", name)
+    ignored = {"and", "with", "the", "for", "in", "on", "a", "an", "jpg", "png", "jpeg", "rf"}
+    return [part for part in tokens if is_memory_term(part, ignored)]
+
+
+def is_memory_term(term: str, ignored: set[str]) -> bool:
+    if len(term) <= 2 or term in ignored:
+        return False
+    if term.isdigit():
+        return False
+    if re.fullmatch(r"\d{4,}", term):
+        return False
+    if re.fullmatch(r"gss\d+", term):
+        return False
+    if re.fullmatch(r"[a-f0-9]{8,}", term):
+        return False
+    return any(char.isalpha() for char in term)
 
 
 def _avg(values) -> float | None:
