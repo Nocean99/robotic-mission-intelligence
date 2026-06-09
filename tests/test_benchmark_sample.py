@@ -67,7 +67,7 @@ def test_create_api_review_sample_uses_policy_buckets() -> None:
                     "review_priority": 1.0 - index * 0.05,
                     "uncertainty_score": index / 12,
                     "final_decision": "REJECT" if index in {4, 6} else "NEEDS_REVIEW",
-                    "final_score": 0.2,
+                    "final_score": 0.2 if index != 5 else 0.45,
                     "label": {"expected_match": expected, "label": "positive" if expected else "negative"},
                 }
             )
@@ -92,6 +92,7 @@ def test_create_api_review_sample_uses_policy_buckets() -> None:
         assert len(rows) == 8
         assert "top_review_priority" in reasons
         assert "high_uncertainty" in reasons
+        assert "local_false_positive" in reasons
         assert "local_miss_or_reject" in reasons
         assert "balanced_benchmark_sample" in reasons
 

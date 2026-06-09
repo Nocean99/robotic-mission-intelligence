@@ -475,7 +475,7 @@ def main() -> None:
     parser.add_argument("--video", action="store_true")
     parser.add_argument("--sample-every-s", type=float, default=1.0)
     parser.add_argument("--max-frames", type=int, default=None)
-    parser.add_argument("--proposal-mode", choices=["precise", "high-recall", "mission-color"], default="mission-color")
+    parser.add_argument("--proposal-mode", choices=["precise", "high-recall", "mission-color", "vehicle"], default="mission-color")
     parser.add_argument("--max-saved-candidates", type=int, default=50)
     parser.add_argument("--min-shortlist-score", type=float, default=0.25)
     parser.add_argument("--labels-csv", default=None)

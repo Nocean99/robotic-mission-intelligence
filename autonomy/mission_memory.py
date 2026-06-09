@@ -13,6 +13,9 @@ def build_mission_memory(root: str | Path = ".") -> dict:
     review_counts: Counter[str] = Counter()
     false_positive_terms: Counter[str] = Counter()
     false_negative_terms: Counter[str] = Counter()
+    false_positive_causes: Counter[str] = Counter()
+    confirmed_positive_indicators: Counter[str] = Counter()
+    uncertainty_causes: Counter[str] = Counter()
     category_metrics: dict[str, list[dict]] = defaultdict(list)
     recent_reports = []
 
@@ -51,7 +54,16 @@ def build_mission_memory(root: str | Path = ".") -> dict:
             except json.JSONDecodeError:
                 reviews = {}
             for review in reviews.values():
-                review_counts[str(review.get("status") or "unknown")] += 1
+                decision = normalize_review_decision(review)
+                review_counts[decision] += 1
+                reason_tag = normalize_reason_tag(review.get("reason_tag") or review.get("reason"))
+                if reason_tag:
+                    if decision == "reject":
+                        false_positive_causes[reason_tag] += 1
+                    elif decision == "approve":
+                        confirmed_positive_indicators[reason_tag] += 1
+                    else:
+                        uncertainty_causes[reason_tag] += 1
 
         if len(recent_reports) < 10:
             summary = report.get("summary") or {}
@@ -75,6 +87,12 @@ def build_mission_memory(root: str | Path = ".") -> dict:
         "category_metrics": summarize_category_metrics(category_metrics),
         "common_false_positive_terms": dict(false_positive_terms.most_common(12)),
         "common_false_negative_terms": dict(false_negative_terms.most_common(12)),
+        "mission_memory_v2": mission_memory_v2_snapshot(
+            false_positive_causes=false_positive_causes,
+            confirmed_positive_indicators=confirmed_positive_indicators,
+            uncertainty_causes=uncertainty_causes,
+            category_metrics=category_metrics,
+        ),
         "mission_memory_v1": mission_memory_snapshot_from_patterns(
             false_positive_terms=false_positive_terms,
             false_negative_terms=false_negative_terms,
@@ -92,6 +110,9 @@ def mission_memory_snapshot(report: dict, reviews: dict | None = None) -> dict:
     false_positive_terms: Counter[str] = Counter()
     false_negative_terms: Counter[str] = Counter()
     review_reasons: Counter[str] = Counter()
+    false_positive_causes: Counter[str] = Counter()
+    confirmed_positive_indicators: Counter[str] = Counter()
+    uncertainty_causes: Counter[str] = Counter()
     for item in evaluation.get("false_positives") or []:
         false_positive_terms.update(_name_terms(item))
     for item in evaluation.get("false_negatives") or []:
@@ -100,6 +121,15 @@ def mission_memory_snapshot(report: dict, reviews: dict | None = None) -> dict:
         reason = str(review.get("reason") or "").strip().lower()
         if reason:
             review_reasons[reason] += 1
+        reason_tag = normalize_reason_tag(review.get("reason_tag") or reason)
+        if reason_tag:
+            decision = normalize_review_decision(review)
+            if decision == "reject":
+                false_positive_causes[reason_tag] += 1
+            elif decision == "approve":
+                confirmed_positive_indicators[reason_tag] += 1
+            else:
+                uncertainty_causes[reason_tag] += 1
 
     analyst_capture = evaluation.get("analyst_capture") or {}
     weak_categories = []
@@ -112,7 +142,77 @@ def mission_memory_snapshot(report: dict, reviews: dict | None = None) -> dict:
         weak_categories=weak_categories,
     )
     snapshot["analyst_decision_patterns"] = dict(review_reasons.most_common(8))
+    snapshot["memory_v2"] = mission_memory_v2_snapshot(
+        false_positive_causes=false_positive_causes,
+        confirmed_positive_indicators=confirmed_positive_indicators,
+        uncertainty_causes=uncertainty_causes,
+        category_metrics={category: [{"capture_recall": analyst_capture.get("recall")}] for category in categories},
+    )
     return snapshot
+
+
+def mission_memory_v2_snapshot(
+    *,
+    false_positive_causes: Counter[str],
+    confirmed_positive_indicators: Counter[str],
+    uncertainty_causes: Counter[str],
+    category_metrics: dict[str, list[dict]],
+) -> dict:
+    weak_categories = _weak_categories(category_metrics)
+    modality_lessons = sensor_modality_lessons(category_metrics)
+    return {
+        "common_false_positive_causes": pretty_counts(false_positive_causes),
+        "confirmed_positive_indicators": pretty_counts(confirmed_positive_indicators),
+        "common_uncertainty_causes": pretty_counts(uncertainty_causes),
+        "weak_categories": sorted(set(weak_categories)),
+        "lessons": memory_v2_lessons(
+            false_positive_causes=false_positive_causes,
+            confirmed_positive_indicators=confirmed_positive_indicators,
+            uncertainty_causes=uncertainty_causes,
+            weak_categories=weak_categories,
+        )
+        + modality_lessons,
+        "sensor_modality_lessons": modality_lessons,
+    }
+
+
+def memory_v2_lessons(
+    *,
+    false_positive_causes: Counter[str],
+    confirmed_positive_indicators: Counter[str],
+    uncertainty_causes: Counter[str],
+    weak_categories: list[str],
+) -> list[str]:
+    lessons = []
+    if false_positive_causes:
+        causes = ", ".join(label for label, _ in false_positive_causes.most_common(3))
+        lessons.append(f"Common false-positive causes: {causes}.")
+    if confirmed_positive_indicators:
+        indicators = ", ".join(label for label, _ in confirmed_positive_indicators.most_common(3))
+        lessons.append(f"Confirmed target indicators: {indicators}.")
+    if uncertainty_causes:
+        causes = ", ".join(label for label, _ in uncertainty_causes.most_common(3))
+        lessons.append(f"Common uncertainty causes: {causes}.")
+    if weak_categories:
+        lessons.append(f"Lower-capture categories need more data: {', '.join(sorted(set(weak_categories)))}.")
+    if not lessons:
+        lessons.append("No analyst reason-tag pattern is strong enough yet; keep tagging reviews.")
+    return lessons
+
+
+def sensor_modality_lessons(category_metrics: dict[str, list[dict]]) -> list[str]:
+    categories = {str(category).lower() for category in category_metrics}
+    if "vehicle" not in categories and "vehicles" not in categories:
+        return []
+    return [
+        "RGB vehicle evidence benefits from selective API semantic review.",
+        "Infrared vehicle evidence currently performs better with local hot-blob triage.",
+        "API thermal review may need a stricter prompt or stricter NEEDS_REVIEW threshold.",
+    ]
+
+
+def pretty_counts(counter: Counter[str]) -> dict[str, int]:
+    return {tag.replace("_", " "): count for tag, count in counter.most_common(8)}
 
 
 def mission_memory_snapshot_from_patterns(
@@ -215,6 +315,42 @@ def is_memory_term(term: str, ignored: set[str]) -> bool:
     if re.fullmatch(r"[a-f0-9]{8,}", term):
         return False
     return any(char.isalpha() for char in term)
+
+
+def normalize_review_decision(review: dict) -> str:
+    decision = str(review.get("decision") or review.get("status") or "unknown").strip().lower()
+    aliases = {
+        "approved": "approve",
+        "confirmed": "approve",
+        "rejected": "reject",
+        "needs_review": "investigate",
+        "needs closer look": "investigate",
+        "needs_closer_look": "investigate",
+    }
+    decision = aliases.get(decision, decision)
+    if decision not in {"approve", "reject", "investigate"}:
+        return "unknown"
+    return decision
+
+
+def normalize_reason_tag(value) -> str:
+    tag = str(value or "").strip().lower().replace(" ", "_").replace("-", "_")
+    allowed = {
+        "person_visible",
+        "vehicle_visible",
+        "too_small",
+        "vegetation",
+        "shadow",
+        "debris",
+        "rooftop",
+        "road_marking",
+        "building",
+        "hot_object",
+        "thermal_clutter",
+        "false_alarm",
+        "uncertain_vehicle",
+    }
+    return tag if tag in allowed else ""
 
 
 def _avg(values) -> float | None:

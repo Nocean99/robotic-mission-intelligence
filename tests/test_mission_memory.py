@@ -38,17 +38,28 @@ def test_mission_memory_summarizes_reports_and_reviews() -> None:
             encoding="utf-8",
         )
         (run / "candidate_reviews.json").write_text(
-            json.dumps({"white truck.jpg::": {"status": "approved", "notes": "vehicle"}}),
+            json.dumps(
+                {
+                    "white truck.jpg::": {"status": "approved", "reason_tag": "person_visible", "notes": "vehicle"},
+                    "grass.jpg::": {"decision": "reject", "reason_tag": "vegetation", "notes": "not a vehicle"},
+                    "shadow.jpg::": {"decision": "investigate", "reason_tag": "shadow", "notes": "unclear"},
+                }
+            ),
             encoding="utf-8",
         )
 
         memory = build_mission_memory(root)
         assert memory["report_count"] == 1
-        assert memory["review_statuses"]["approved"] == 1
+        assert memory["review_statuses"]["approve"] == 1
+        assert memory["review_statuses"]["reject"] == 1
         assert memory["category_metrics"]["vehicle"]["avg_capture_recall"] == 1.0
         assert "grass" in memory["common_false_positive_terms"]
         assert "truck" in memory["common_false_negative_terms"]
         assert "mission_memory_v1" in memory
+        assert memory["mission_memory_v2"]["common_false_positive_causes"]["vegetation"] == 1
+        assert memory["mission_memory_v2"]["common_uncertainty_causes"]["shadow"] == 1
+        assert "RGB vehicle evidence benefits from selective API semantic review." in memory["mission_memory_v2"]["sensor_modality_lessons"]
+        assert "Infrared vehicle evidence currently performs better with local hot-blob triage." in memory["mission_memory_v2"]["lessons"]
         assert memory["recommendations"]
 
 
@@ -62,11 +73,16 @@ def test_mission_memory_snapshot_uses_report_patterns() -> None:
                 "analyst_capture": {"recall": 0.5},
             },
         },
-        {"candidate-1": {"decision": "reject", "reason": "shoreline debris"}},
+        {
+            "candidate-1": {"decision": "reject", "reason_tag": "debris", "reason": "shoreline debris"},
+            "candidate-2": {"decision": "investigate", "reason_tag": "too_small"},
+        },
     )
     assert "debris" in snapshot["false_positive_patterns"]
     assert "boat" in snapshot["miss_patterns"]
     assert "boat" in snapshot["weak_categories"]
+    assert snapshot["memory_v2"]["common_false_positive_causes"]["debris"] == 1
+    assert snapshot["memory_v2"]["common_uncertainty_causes"]["too small"] == 1
     assert snapshot["recommended_data"]
 
 

@@ -19,6 +19,7 @@ from autonomy.objectness_proposal_detector import ObjectnessProposalDetector
 from autonomy.red_block_detector import RedBlockDetector
 from autonomy.semantic_vision import LocalSemanticVisionScorer, OpenAIVisionLanguageScorer, crop_detection, save_candidate_crop
 from autonomy.types import SemanticDecision, SemanticVisionResult, TargetDetection
+from autonomy.vehicle_proposal_detector import VehicleProposalDetector, infer_sensor_modality, is_vehicle_vision_plan
 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
@@ -48,6 +49,7 @@ def run_vision_lab(
     vision_plan = create_mission_vision_plan(objective)
     detector = RedBlockDetector(config.target)
     color_detector = MissionColorProposalDetector(vision_plan, min_area_px=max(25, int(config.target.min_area_px * 0.15)))
+    vehicle_detector = VehicleProposalDetector(min_area_px=12)
     scorer = LocalSemanticVisionScorer()
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_dir = Path(output_dir) / stamp
@@ -166,6 +168,7 @@ def _run_vision_lab_on_frames(
     detector = RedBlockDetector(config.target)
     color_detector = MissionColorProposalDetector(vision_plan, min_area_px=max(25, int(config.target.min_area_px * 0.15)))
     objectness_detector = ObjectnessProposalDetector(min_area_px=max(30, int(config.target.min_area_px * 0.12)))
+    vehicle_detector = VehicleProposalDetector(min_area_px=12)
     scorer = build_semantic_scorer(
         semantic_vision,
         openai_model=openai_model,
@@ -196,8 +199,27 @@ def _run_vision_lab_on_frames(
                 }
             )
             continue
-        detection = detect_with_mode(detector, color_detector, objectness_detector, vision_plan, frame, proposal_mode)
-        audit_mask = audit_mask_for_mode(detector, color_detector, objectness_detector, vision_plan, frame, proposal_mode)
+        sensor_modality = infer_sensor_modality(source_path, frame)
+        detection = detect_with_mode(
+            detector,
+            color_detector,
+            objectness_detector,
+            vision_plan,
+            frame,
+            proposal_mode,
+            sensor_modality=sensor_modality,
+            vehicle_detector=vehicle_detector,
+        )
+        audit_mask = audit_mask_for_mode(
+            detector,
+            color_detector,
+            objectness_detector,
+            vision_plan,
+            frame,
+            proposal_mode,
+            sensor_modality=sensor_modality,
+            vehicle_detector=vehicle_detector,
+        )
         audit = red_region_audit(audit_mask)
         crop = crop_detection(frame, detection)
         semantic_error = None
@@ -243,8 +265,11 @@ def _run_vision_lab_on_frames(
             saved_crop = save_candidate_crop(crop, crop_path)
         elif detection.detected:
             pending_debug.append((index, frame.copy(), detection, debug_path))
-            pending_crop.append((index, crop, crop_path))
-            saved_crop = str(crop_path)
+            if crop is not None:
+                pending_crop.append((index, crop, crop_path))
+                saved_crop = str(crop_path)
+            else:
+                saved_crop = None
         else:
             debug_path = None
             crop_path = None
@@ -257,6 +282,8 @@ def _run_vision_lab_on_frames(
                 "timestamp_s": item.get("timestamp_s"),
                 "detected": detection.detected,
                 "detector_confidence": detection.confidence,
+                "sensor_modality": detection.sensor_modality or sensor_modality,
+                "proposal_reason": detection.proposal_reason,
                 "proposal_score": ranking.proposal_score,
                 "semantic_score": ranking.semantic_score,
                 "uncertainty_score": ranking.uncertainty_score,
@@ -391,7 +418,7 @@ def main() -> None:
     parser.add_argument("--video", action="store_true", help="Treat the input path as a video file or folder of videos")
     parser.add_argument(
         "--proposal-mode",
-        choices=["precise", "high-recall", "mission-color"],
+        choices=["precise", "high-recall", "mission-color", "vehicle"],
         default="mission-color",
         help="mission-color adapts color proposals to the mission text; high-recall is broad red-focused; precise is stricter.",
     )
@@ -479,7 +506,12 @@ def detect_with_mode(
     vision_plan,
     frame: np.ndarray,
     proposal_mode: str,
+    sensor_modality: str = "rgb",
+    vehicle_detector: VehicleProposalDetector | None = None,
 ):
+    if proposal_mode == "vehicle" or (proposal_mode == "mission-color" and is_vehicle_vision_plan(vision_plan)):
+        detector_to_use = vehicle_detector or VehicleProposalDetector()
+        return detector_to_use.detect(frame, modality=sensor_modality, allow_fallback=True)
     if proposal_mode == "precise":
         return detector.detect(frame)
     if proposal_mode == "mission-color":
@@ -498,7 +530,12 @@ def audit_mask_for_mode(
     vision_plan,
     frame: np.ndarray,
     proposal_mode: str,
+    sensor_modality: str = "rgb",
+    vehicle_detector: VehicleProposalDetector | None = None,
 ) -> np.ndarray:
+    if proposal_mode == "vehicle" or (proposal_mode == "mission-color" and is_vehicle_vision_plan(vision_plan)):
+        detector_to_use = vehicle_detector or VehicleProposalDetector()
+        return detector_to_use.mask(frame, modality=sensor_modality)
     if proposal_mode == "mission-color":
         if not vision_plan.important_colors and vision_plan.possible_categories:
             return objectness_detector.mask(frame)
@@ -708,6 +745,8 @@ def _shortlist_entry(result: dict) -> dict:
         "score": result.get("final_score", semantic.get("score")),
         "decision": result.get("final_decision", semantic.get("decision")),
         "detector_confidence": result.get("detector_confidence"),
+        "sensor_modality": result.get("sensor_modality"),
+        "proposal_reason": result.get("proposal_reason"),
         "proposal_score": result.get("proposal_score"),
         "semantic_score": result.get("semantic_score"),
         "uncertainty_score": result.get("uncertainty_score"),

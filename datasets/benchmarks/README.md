@@ -51,6 +51,71 @@ Rules:
 
 The default YOLO person class id is `0`. Use `--person-class-id` for datasets with a different class map.
 
+## YOLO OBB Vehicle Import
+
+YOLO OBB vehicle datasets can be converted into Aegis labels with:
+
+```bash
+./scripts/import_yolo_obb_vehicle_benchmark.sh "/path/to/yolo_obb_vehicle_dataset"
+```
+
+By default this writes:
+
+```text
+datasets/benchmarks/vehicles/vehicle_labels.csv
+datasets/benchmarks/vehicles/vehicle_labels_stats.json
+```
+
+The importer reads `data.yaml` first and treats classes with vehicle names as positive target classes. For the DroneVehicle Dataset YOLOv11 OBB export, the class list is:
+
+```text
+0: small-vehicle
+1: large-vehicle
+```
+
+OBB coordinates and rotation are ignored for benchmark label generation. The benchmark label only asks whether the image contains at least one vehicle annotation.
+
+## DroneVehicle RGB/Infrared Import
+
+The DroneVehicle RGB/infrared dataset can be analyzed with:
+
+```bash
+./scripts/analyze_dronevehicle_benchmark.sh "/path/to/VisDrone-DroneVehicle"
+```
+
+It can be converted into separate Aegis RGB and infrared labels with:
+
+```bash
+./scripts/import_dronevehicle_vehicle_benchmark.sh "/path/to/VisDrone-DroneVehicle"
+```
+
+By default this writes:
+
+```text
+datasets/benchmarks/vehicles/dronevehicle_rgb_labels.csv
+datasets/benchmarks/vehicles/dronevehicle_ir_labels.csv
+datasets/benchmarks/vehicles/dronevehicle_stats.json
+docs/DRONEVEHICLE_BENCHMARK_ANALYSIS.md
+```
+
+Output columns:
+
+```csv
+image_path,expected_match,label,modality,source_dataset
+```
+
+The importer supports Pascal/VOC-style XML annotations with oriented polygon points. For benchmark labels, polygon geometry and rotation are ignored; any target vehicle annotation makes the image a positive match.
+
+Target vehicle classes:
+
+- `car`
+- `truck`
+- `bus`
+- `van`
+- `freight car`
+- `small-vehicle`
+- `large-vehicle`
+
 ## Full Local / Small API Workflow
 
 Run the full dataset with the local scorer first:
@@ -116,3 +181,47 @@ Then run the API scorer only on that smaller sample:
   --full-frame-semantic misses \
   --max-saved-candidates 200
 ```
+
+## DroneVehicle Local RGB/IR Baselines
+
+Create 500-image local subsets:
+
+```bash
+./scripts/create_benchmark_sample.sh "/path/to/VisDrone-DroneVehicle" \
+  --labels-csv datasets/benchmarks/vehicles/dronevehicle_rgb_labels.csv \
+  --output-dir logs/benchmark_samples/dronevehicle_rgb_local_500 \
+  --max-images 500 \
+  --seed 21
+
+./scripts/create_benchmark_sample.sh "/path/to/VisDrone-DroneVehicle" \
+  --labels-csv datasets/benchmarks/vehicles/dronevehicle_ir_labels.csv \
+  --output-dir logs/benchmark_samples/dronevehicle_ir_local_500 \
+  --max-images 500 \
+  --seed 22
+```
+
+Run local-only RGB and IR evaluations:
+
+```bash
+./scripts/run_mission_evaluation.sh \
+  logs/benchmark_samples/dronevehicle_rgb_local_500/images \
+  --mission-request "Search aerial RGB imagery for vehicles relevant to incident response" \
+  --labels-csv logs/benchmark_samples/dronevehicle_rgb_local_500/labels.csv \
+  --semantic-vision local \
+  --proposal-mode vehicle \
+  --full-frame-semantic misses \
+  --max-saved-candidates 500
+
+./scripts/run_mission_evaluation.sh \
+  logs/benchmark_samples/dronevehicle_ir_local_500/images \
+  --mission-request "Search infrared aerial imagery for vehicles relevant to incident response" \
+  --labels-csv logs/benchmark_samples/dronevehicle_ir_local_500/labels.csv \
+  --semantic-vision local \
+  --proposal-mode vehicle \
+  --full-frame-semantic misses \
+  --max-saved-candidates 500
+```
+
+The vehicle proposal mode is local-only. It uses RGB contour/objectness proposals, infrared hot-blob proposals, and a low-confidence full-frame fallback so uncertain vehicle evidence remains reviewable.
+
+Do not run OpenAI/API review on the full DroneVehicle dataset. If API review is needed, create a 100-250 image sample first.

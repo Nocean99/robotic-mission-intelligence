@@ -193,6 +193,7 @@ Current active benchmarks:
 
 - people in aerial/grass imagery
 - vehicles in aerial/incident-response imagery
+- DroneVehicle RGB and infrared vehicle labels
 
 Configured dataset placeholders:
 
@@ -229,6 +230,22 @@ This generates:
 datasets/benchmarks/people/sard_labels.csv
 ```
 
+Analyze and import the DroneVehicle RGB/infrared dataset:
+
+```bash
+./scripts/analyze_dronevehicle_benchmark.sh "/path/to/VisDrone-DroneVehicle"
+./scripts/import_dronevehicle_vehicle_benchmark.sh "/path/to/VisDrone-DroneVehicle"
+```
+
+This generates:
+
+```text
+datasets/benchmarks/vehicles/dronevehicle_rgb_labels.csv
+datasets/benchmarks/vehicles/dronevehicle_ir_labels.csv
+datasets/benchmarks/vehicles/dronevehicle_stats.json
+docs/DRONEVEHICLE_BENCHMARK_ANALYSIS.md
+```
+
 The suite writes:
 
 ```text
@@ -251,17 +268,71 @@ Recent SAR benchmark:
 - improved API-sample capture precision from 70% to 91% with review-priority sampling
 - kept capture recall near 90%, meaning likely person evidence was still preserved for analyst review
 
+Benchmark snapshot:
+
+| Benchmark | Images | Review Strategy | Capture Precision | Capture Recall |
+|---|---:|---|---:|---:|
+| SAR local triage | 5,712 | local full-dataset pass | 83.7% | 69.8% |
+| SAR API review | 200 | review-priority sample | 91.0% | 89.7% |
+| Vehicle local triage | 43 | local category baseline | 34.6% | 81.8% |
+| DroneVehicle RGB local subset | 500 | local vehicle proposals | 50.0% | 100.0% |
+| DroneVehicle RGB API review | 100 | review-priority sample | 73.2% | 95.3% |
+| DroneVehicle IR local subset | 500 | local vehicle proposals | 89.4% | 100.0% |
+| DroneVehicle IR API review | 100 | review-priority sample | 61.1% | 100.0% |
+
+Vehicle modality recommendation:
+
+| Modality | Best Current Strategy | Why |
+|---|---|---|
+| RGB vehicles | selective API semantic review | improves capture precision from 50.0% to 73.2% while keeping recall high |
+| IR vehicles | local hot-blob triage | keeps 89.4% capture precision and 100.0% capture recall; API over-keeps thermal clutter |
+
+DroneVehicle benchmark readiness:
+
+- generated separate RGB and infrared vehicle labels
+- 28,439 RGB images and 28,439 infrared images
+- 28,439 detectable RGB/IR pairs
+- 953,164 vehicle annotations
+- 56,040 positive image cases and 838 negative image cases
+- precision can be measured directly from this dataset
+
 Recent benchmark direction:
 
 - full-frame fallback significantly improved target capture
 - vehicle benchmark performance improved strongly after crop-reject fallback
-- remaining work is reducing noisy review items while preserving recall
+- DroneVehicle RGB/IR local proposal baselines now preserve likely vehicle evidence instead of returning zero detections
+- RGB API review improved capture precision from 50.0% to 73.2% while keeping capture recall high at 95.3%
+- IR API review preserved recall but reduced precision, so thermal review needs a stricter prompt or threshold before it beats local triage
+- remaining work is reducing noisy RGB review items further and tuning thermal API review against hard negatives
 
 Latest people-search benchmark notes:
 
 ```text
 docs/SARD_BENCHMARK_REPORT.md
 ```
+
+Latest vehicle benchmark notes:
+
+```text
+docs/VEHICLE_BENCHMARK_REPORT.md
+docs/DRONEVEHICLE_BENCHMARK_ANALYSIS.md
+docs/DRONEVEHICLE_RGB_BENCHMARK_REPORT.md
+docs/DRONEVEHICLE_IR_BENCHMARK_REPORT.md
+docs/DRONEVEHICLE_RGB_API_BENCHMARK_REPORT.md
+docs/DRONEVEHICLE_IR_API_BENCHMARK_REPORT.md
+docs/LINKEDIN_POST_AEGIS_VEHICLE_MODALITY_BENCHMARK.md
+docs/PORTFOLIO_AEGIS_MODALITY_INTELLIGENCE.md
+```
+
+Next platform expansion:
+
+```text
+Aegis Vision Intelligence
++ Aegis Infrared Intelligence
++ Aegis Acoustic Intelligence
+```
+
+The vehicle modality benchmark makes acoustic/sonar sensing the next logical expansion: a non-visual evidence stream that can use the same mission-memory, benchmark, and analyst-review workflow.
 
 ## Mission Memory
 
@@ -273,12 +344,18 @@ Example shape:
 {
   "recurring_false_positives": ["grass", "grey objects", "white vehicles"],
   "recurring_misses": ["partially hidden person", "small distant vehicle"],
+  "common_false_positive_causes": ["vegetation", "shadow", "debris"],
+  "common_uncertainty_causes": ["too small"],
+  "sensor_modality_lessons": [
+    "RGB vehicle evidence benefits from selective API semantic review.",
+    "Infrared vehicle evidence currently performs better with local hot-blob triage."
+  ],
   "weak_categories": ["boats", "smoke", "signals"],
   "recommended_data": ["shoreline vessel imagery", "hard-negative smoke/fog examples"]
 }
 ```
 
-This is not model training yet. It is operational learning: the system records where it is weak, what it tends to over-prioritize, and what benchmark data should be collected next.
+This is not model training yet. It is operational learning: the system records where it is weak, what it tends to over-prioritize, which analyst reason tags keep appearing, and what benchmark data should be collected next.
 
 ## Mission Evaluation
 
@@ -414,6 +491,9 @@ Run focused mission-intelligence tests:
 python3 tests/test_vision_lab.py
 python3 tests/test_mission_memory.py
 python3 tests/test_yolo_benchmark_importer.py
+python3 tests/test_yolo_obb_vehicle_importer.py
+python3 tests/test_dronevehicle_benchmark_analysis.py
+python3 tests/test_dronevehicle_importer.py
 python3 tests/test_analyst_server.py
 python3 tests/test_mission_benchmark_suite.py
 python3 tests/test_mission_evaluation.py

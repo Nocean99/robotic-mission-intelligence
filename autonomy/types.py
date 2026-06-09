@@ -119,6 +119,8 @@ class TargetDetection:
     area_px: float = 0.0
     area_ratio: float = 0.0
     bearing_rad: float | None = None
+    sensor_modality: str | None = None
+    proposal_reason: str | None = None
 
 
 @dataclass(frozen=True)

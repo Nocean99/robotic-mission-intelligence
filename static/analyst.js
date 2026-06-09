@@ -277,6 +277,7 @@ async function loadMissionMemory() {
 function renderMissionMemory(memory) {
   const categories = Object.entries(memory.category_metrics || {});
   const recommendations = memory.recommendations || [];
+  const memoryV2 = memory.mission_memory_v2 || {};
   missionMemory.innerHTML = `
     ${memoryBlock("Coverage", [
       ["Reports", memory.report_count ?? 0],
@@ -287,6 +288,12 @@ function renderMissionMemory(memory) {
       ["False-positive cues", formatCounts(memory.common_false_positive_terms)],
       ["Miss cues", formatCounts(memory.common_false_negative_terms)],
     ])}
+    ${memoryBlock("Analyst Lessons", [
+      ["False-positive causes", formatCounts(memoryV2.common_false_positive_causes)],
+      ["Confirmed indicators", formatCounts(memoryV2.confirmed_positive_indicators)],
+      ["Uncertainty causes", formatCounts(memoryV2.common_uncertainty_causes)],
+    ])}
+    ${memoryBlock("V2 Lessons", (memoryV2.lessons || []).map((item, index) => [String(index + 1), item]))}
     ${memoryBlock("Recommendations", recommendations.map((item, index) => [String(index + 1), item]))}
     ${memoryBlock("Category Performance", categories.length ? categories.map(([name, metric]) => [
       name,
@@ -343,11 +350,18 @@ function reasonTagOptions(selected) {
   const tags = [
     ["", "Reason tag"],
     ["person_visible", "Person visible"],
+    ["vehicle_visible", "Vehicle visible"],
     ["too_small", "Too small"],
     ["vegetation", "Vegetation"],
     ["shadow", "Shadow"],
     ["debris", "Debris"],
+    ["rooftop", "Rooftop"],
+    ["road_marking", "Road marking"],
+    ["building", "Building"],
+    ["hot_object", "Hot object"],
+    ["thermal_clutter", "Thermal clutter"],
     ["false_alarm", "False alarm"],
+    ["uncertain_vehicle", "Uncertain vehicle"],
   ];
   return tags
     .map(([value, label]) => `<option value="${escapeHtml(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`)

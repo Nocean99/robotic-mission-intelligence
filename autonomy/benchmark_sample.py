@@ -79,7 +79,7 @@ def create_api_review_sample(
     rng = random.Random(seed)
     selected: dict[str, dict] = {}
 
-    quota = max(1, max_images // 4)
+    quota = max(1, max_images // 5)
     add_results(
         selected,
         sorted(results, key=lambda item: float(item.get("review_priority") or 0.0), reverse=True),
@@ -92,6 +92,12 @@ def create_api_review_sample(
         quota,
         "high_uncertainty",
     )
+    false_positive_candidates = [
+        item
+        for item in results
+        if item.get("label", {}).get("expected_match") is False and is_captured_for_review_like(item)
+    ]
+    add_results(selected, false_positive_candidates, quota, "local_false_positive")
     miss_candidates = [
         item
         for item in results
@@ -234,6 +240,7 @@ def unique_name(name: str, used: set[str]) -> str:
 def link_or_copy(source: Path, target: Path) -> None:
     if target.exists() or target.is_symlink():
         target.unlink()
+    source = source.resolve()
     try:
         target.symlink_to(source)
     except OSError:

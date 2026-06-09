@@ -1,0 +1,172 @@
+{
+  "dataset_dir": "/Users/noah/Downloads/VisDrone-DroneVehicle",
+  "source_dataset": "dronevehicle",
+  "folder_structure": {
+    "train": {
+      "rgb_images": "/Users/noah/Downloads/VisDrone-DroneVehicle/train/trainimg",
+      "infrared_images": "/Users/noah/Downloads/VisDrone-DroneVehicle/train/trainimgr",
+      "rgb_annotations": "/Users/noah/Downloads/VisDrone-DroneVehicle/train/trainlabel",
+      "infrared_annotations": "/Users/noah/Downloads/VisDrone-DroneVehicle/train/trainlabelr"
+    },
+    "val": {
+      "rgb_images": "/Users/noah/Downloads/VisDrone-DroneVehicle/val/valimg",
+      "infrared_images": "/Users/noah/Downloads/VisDrone-DroneVehicle/val/valimgr",
+      "rgb_annotations": "/Users/noah/Downloads/VisDrone-DroneVehicle/val/vallabel",
+      "infrared_annotations": "/Users/noah/Downloads/VisDrone-DroneVehicle/val/vallabelr"
+    },
+    "test": {
+      "rgb_images": "/Users/noah/Downloads/VisDrone-DroneVehicle/test/testimg",
+      "infrared_images": "/Users/noah/Downloads/VisDrone-DroneVehicle/test/testimgr",
+      "rgb_annotations": "/Users/noah/Downloads/VisDrone-DroneVehicle/test/testlabel",
+      "infrared_annotations": "/Users/noah/Downloads/VisDrone-DroneVehicle/test/testlabelr"
+    }
+  },
+  "annotation_format": "Pascal VOC XML with oriented polygon points",
+  "target_vehicle_classes": [
+    "bus",
+    "car",
+    "freight car",
+    "large vehicle",
+    "small vehicle",
+    "truck",
+    "van"
+  ],
+  "class_aliases": {
+    "small-vehicle": "small vehicle",
+    "large-vehicle": "large vehicle",
+    "feright": "freight car",
+    "feright car": "freight car",
+    "truvk": "truck"
+  },
+  "total_rgb_images": 28439,
+  "total_ir_images": 28439,
+  "total_annotations": 953164,
+  "class_distribution": {
+    "car": 817926,
+    "truck": 48086,
+    "bus": 31924,
+    "freight car": 30583,
+    "van": 24643,
+    "*": 2
+  },
+  "images_with_annotations": 56040,
+  "images_without_annotations": 838,
+  "positive_images": 56040,
+  "negative_images": 838,
+  "rgb_ir_pair_counts": {
+    "train": {
+      "rgb_images": 17990,
+      "ir_images": 17990,
+      "paired_images": 17990,
+      "rgb_without_ir": 0,
+      "ir_without_rgb": 0
+    },
+    "val": {
+      "rgb_images": 1469,
+      "ir_images": 1469,
+      "paired_images": 1469,
+      "rgb_without_ir": 0,
+      "ir_without_rgb": 0
+    },
+    "test": {
+      "rgb_images": 8980,
+      "ir_images": 8980,
+      "paired_images": 8980,
+      "rgb_without_ir": 0,
+      "ir_without_rgb": 0
+    },
+    "total_pairs": 28439
+  },
+  "splits": {
+    "test": {
+      "rgb": {
+        "images": 8980,
+        "annotation_files": 8980,
+        "images_with_annotation_files": 8980,
+        "images_without_annotation_files": 0
+      },
+      "infrared": {
+        "images": 8980,
+        "annotation_files": 8980,
+        "images_with_annotation_files": 8980,
+        "images_without_annotation_files": 0
+      }
+    },
+    "train": {
+      "rgb": {
+        "images": 17990,
+        "annotation_files": 17990,
+        "images_with_annotation_files": 17990,
+        "images_without_annotation_files": 0
+      },
+      "infrared": {
+        "images": 17990,
+        "annotation_files": 17990,
+        "images_with_annotation_files": 17990,
+        "images_without_annotation_files": 0
+      }
+    },
+    "val": {
+      "rgb": {
+        "images": 1469,
+        "annotation_files": 1469,
+        "images_with_annotation_files": 1469,
+        "images_without_annotation_files": 0
+      },
+      "infrared": {
+        "images": 1469,
+        "annotation_files": 1469,
+        "images_with_annotation_files": 1469,
+        "images_without_annotation_files": 0
+      }
+    }
+  },
+  "modalities": {
+    "rgb": {
+      "total_images": 28439,
+      "images_with_annotations": 27654,
+      "images_without_annotations": 785,
+      "positive_images": 27654,
+      "negative_images": 785,
+      "total_annotations": 452608,
+      "class_distribution": {
+        "car": 389808,
+        "truck": 22125,
+        "bus": 15334,
+        "freight car": 13405,
+        "van": 11935,
+        "*": 1
+      }
+    },
+    "infrared": {
+      "total_images": 28439,
+      "images_with_annotations": 28386,
+      "images_without_annotations": 53,
+      "positive_images": 28386,
+      "negative_images": 53,
+      "total_annotations": 500556,
+      "class_distribution": {
+        "car": 428118,
+        "truck": 25961,
+        "freight car": 17178,
+        "bus": 16590,
+        "van": 12708,
+        "*": 1
+      }
+    }
+  },
+  "precision_can_be_measured_directly": true,
+  "recall_focused_benchmark": false,
+  "recommended_benchmark_strategy": [
+    "Use RGB and infrared labels as separate recall benchmarks.",
+    "Run local evaluation first; reserve API review for 100-250 selected images.",
+    "Keep RGB and infrared results separate because visible-light and thermal-like imagery fail differently.",
+    "Use negative images in this dataset to measure capture precision directly."
+  ],
+  "outputs": {
+    "rgb_labels_csv": "datasets/benchmarks/vehicles/dronevehicle_rgb_labels.csv",
+    "ir_labels_csv": "datasets/benchmarks/vehicles/dronevehicle_ir_labels.csv",
+    "stats_json": "datasets/benchmarks/vehicles/dronevehicle_stats.json",
+    "analysis_doc": "docs/DRONEVEHICLE_BENCHMARK_ANALYSIS.md"
+  }
+}

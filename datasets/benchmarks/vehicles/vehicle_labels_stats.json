@@ -1,0 +1,32 @@
+{
+  "dataset_dir": "/Users/noah/Downloads/DroneVehiclesDatasetYOLO",
+  "output_csv": "datasets/benchmarks/vehicles/vehicle_labels.csv",
+  "class_names": {
+    "0": "small-vehicle",
+    "1": "large-vehicle"
+  },
+  "vehicle_class_ids": [
+    0,
+    1
+  ],
+  "vehicle_class_names": [
+    "small-vehicle",
+    "large-vehicle"
+  ],
+  "images_processed": 17325,
+  "positive_images": 17325,
+  "negative_images": 0,
+  "missing_label_files": 0,
+  "empty_label_files": 0,
+  "annotations_total": 278078,
+  "vehicle_annotations": 278078,
+  "class_counts": {
+    "large-vehicle": 24105,
+    "small-vehicle": 253973
+  },
+  "split_counts": {
+    "test": 2608,
+    "train": 12118,
+    "val": 2599
+  }
+}
